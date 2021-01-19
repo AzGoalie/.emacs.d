@@ -1,0 +1,410 @@
+#+title: My Emacs Configuration
+#+property: header-args :tangle yes
+
+* About this configuration
+* early-init
+  Emacs 27 added a new file that is loaded before any package system
+  starts. This file is the early-init.el. Here we disable package.el
+  to increase startup speed.
+
+  #+begin_src emacs-lisp :tangle early-init.el
+    ;;; early-init.el --- Emacs 27+ pre-initialisation config
+
+    ;;; Commentary:
+
+    ;; Emacs 27+ loads this file before (normally) calling
+    ;; `package-initialize'.  We use this file to suppress that automatic
+    ;; behaviour so that startup is consistent across Emacs versions.
+
+    ;;; Code:
+
+    (setq package-enable-at-startup nil)
+
+    ;; So we can detect this having been loaded
+    (provide 'early-init)
+
+    ;;; early-init.el ends here
+
+ #+end_src
+
+* Setup
+** Lexical binding
+   Emacs by default has dynamic binding enabled. This causes scoping
+   issues, especially in let bindings. Adding a special comment at the
+   top of a file will enable lexical-binding, which most other
+   languages use.
+
+   #+begin_src emacs-lisp
+     ;;; config.el --- Tangled config.el -*- lexical-binding: t -*-
+     ;;; Commentary:
+
+     ;; Do not manually edit this file.
+     ;; This file is generated from config.org
+
+     ;;; Code:
+   #+end_src
+
+** Garbage collection
+   Loading packages during initialization takes a lot of memory, and
+   emacs by default has a very conservative limit. To speed up
+   initialization, we increase the memeory limit and reset after
+   all packages have loaded.
+
+   #+begin_src emacs-lisp
+     (let ((normal-gc-cons-threshold (* 20 1024 1024))
+           (init-gc-cons-threshold (* 128 1024 1024)))
+       (setq gc-cons-threshold init-gc-cons-threshold)
+       (add-hook 'emacs-startup-hook
+                 (lambda () (setq gc-cons-threshold normal-gc-cons-threshold))))
+   #+end_src
+
+** Initialize package manager
+   Setup the package repositories and initialize package.el.
+
+   #+begin_src emacs-lisp
+     (require 'package)
+     (setq package-archives '(("melpa" . "https://melpa.org/packages/")
+                              ("org"   . "https://orgmode.org/elpa/")
+                              ("elpa"  . "https://elpa.gnu.org/packages/")))
+     (package-initialize)
+   #+end_src
+
+** Bootstrap use-package
+   Use-package is a great package manage and configuration system.
+
+   #+begin_src emacs-lisp
+     (unless (package-installed-p 'use-package)
+       (package-refresh-contents)
+       (package-install 'use-package))
+     (eval-when-compile
+       (require 'use-package))
+   #+end_src
+
+* Better defaults
+** Personal information
+   Setup basic user information.
+
+   #+begin_src emacs-lisp
+     (setq user-full-name    "Travis McMahon"
+           user-mail-address "azgoalie@gmail.com")
+   #+end_src
+
+** Keep folders clean
+   Emacs by default likes to dirty up user-emacs-direcotry and the
+   working directory of the current file with autosave files,
+   filelocks and backup files. This package places these files, and
+   others, in subdirectories of user-emacs-directory.
+
+   #+begin_src emacs-lisp
+     (use-package no-littering
+       :ensure t
+       :custom
+       (auto-save-file-name-transforms
+        `((".*" ,(no-littering-expand-var-file-name "auto-save/") t)))
+       (custom-file (no-littering-expand-etc-file-name "custom.el")))
+   #+end_src
+** Remove GUI clutter
+   Cleanup the UI by disabling unneeded features.
+
+   #+begin_src emacs-lisp
+     (tool-bar-mode -1)
+     (scroll-bar-mode -1)
+     (setq inhibit-startup-screen t)
+   #+end_src
+** Disable bell noises
+   
+   #+begin_src emacs-lisp
+     (setq ring-bell-function 'ignore)
+   #+end_src
+** Enable line numbers
+   Enable relative line numbers in text-mode and prog-mode.
+
+   #+begin_src emacs-lisp
+     (use-package display-line-numbers
+       :hook ((prog-mode text-mode) . display-line-numbers-mode)
+       :custom (display-line-numbers-type 'relative))
+   #+end_src
+** Highlight current line
+
+   #+begin_src emacs-lisp
+     (global-hl-line-mode t)
+   #+end_src
+** Save window configurations
+   Winner mode saves window configurations like the undo list. It is a
+   very useful feature that is disabled by default for some reason.
+
+   #+begin_src emacs-lisp
+     (winner-mode t)
+   #+end_src
+** Enable dired extensions
+   dired-x adds many nice enhancements to dired such as filtering,
+   shell commands, and extra marking commands.
+
+   #+begin_src emacs-lisp
+     (use-package dired-x)
+   #+end_src
+** Disable tabs
+
+   #+begin_src emacs-lisp
+     (setq-default indent-tabs-mode nil)
+   #+end_src
+
+** Highlight mathing parentheses
+
+   #+begin_src emacs-lisp
+     (show-paren-mode t)
+   #+end_src
+
+** Shorter yes-or-no prompts
+
+   #+begin_src emacs-lisp
+     (defalias 'yes-or-no-p 'y-or-n-p)
+   #+end_src
+
+** Sentences end with a single space
+
+   #+begin_src emacs-lisp
+     (setq sentence-end-double-space nil)
+   #+end_src
+
+** Always replace selected regions
+
+   In some distributions of emacs (OS X for example) this mode is
+   disabled by default. It allows you to replace highlighted regions
+   of text like in other programs.
+
+   #+begin_src emacs-lisp
+     (delete-selection-mode t)
+   #+end_src
+
+** Set the title to the current buffer
+
+   #+begin_src emacs-lisp
+     (setq frame-title-format '("%b")
+           icon-title-format  '("%b"))
+   #+end_src
+
+** Disable C-z
+   C-z by default hides emacs, which can be anoying when hit by
+   accedent, also makes this keybinding avaiable for other uses.
+
+   #+begin_src emacs-lisp
+     (global-unset-key (kbd "C-z"))
+   #+end_src
+
+** Always kill current buffer
+
+   #+begin_src emacs-lisp
+     (global-set-key (kbd "C-x k")  'kill-this-buffer)
+   #+end_src
+
+** Make buffers have unique names
+
+   #+begin_src emacs-lisp
+     (use-package uniquify
+       :custom (uniquify-buffer-name-style 'forward))
+   #+end_src
+
+** Remember where we left off at
+
+   #+begin_src emacs-lisp
+     (save-place-mode t)
+   #+end_src
+
+** Fancy lambdas and symbols
+
+   #+begin_src emacs-lisp
+     (global-prettify-symbols-mode t)
+   #+end_src
+
+** Automatically refresh file on change
+
+   #+begin_src emacs-lisp
+     (global-auto-revert-mode t)
+   #+end_src
+
+* Theme
+
+  #+begin_src emacs-lisp
+    (use-package doom-themes
+      :ensure t
+      :config
+      (load-theme 'doom-dracula t)
+      (doom-themes-org-config))
+
+    (use-package doom-modeline
+      :ensure t
+      :config (doom-modeline-mode t))
+  #+end_src
+
+* Custom keybindings
+  #+begin_src emacs-lisp
+    (global-set-key (kbd "M-o") 'other-window)
+    (global-set-key (kbd "M-i") 'imenu)
+    (global-set-key [remap dabbrev-expand] 'hippie-expand)
+  #+end_src
+* General packages
+** Which-key
+   Which-key shows all available keybinds after a short delay when
+   pressing a key chord.
+
+   #+begin_src emacs-lisp
+     (use-package which-key
+       :ensure t
+       :config (which-key-mode t))
+   #+end_src
+
+** Ivy/Counsel
+   Ivy is a completion framework for emacs, and counsel replaces many
+   emacs functions with ivy versions.
+
+   #+begin_src emacs-lisp
+     (use-package ivy
+       :ensure t
+       :custom
+       (ivy-use-virtual-buffers t)
+       (ivy-count-format "(%d/%d) ")
+       :config
+       (ivy-mode t))
+
+     (use-package counsel
+       :ensure t
+       :config (counsel-mode t))
+   #+end_src
+
+** Better help buffers
+
+   Helpful is an alternative help system for emacs that shows more
+   context.
+
+   #+begin_src emacs-lisp
+     (use-package helpful
+       :ensure t
+       :custom
+       (counsel-describe-function-function #'helpful-callable)
+       (counsel-describe-variable-function #'helpful-variable)
+       :bind
+       ([remap describe-function] . counsel-describe-function)
+       ([remap describe-variable] . counsel-describe-variable)
+       ([remap describe-command]  . helpful-command)
+       ([remap describe-key]      . helpful-key))
+   #+end_src
+ 
+** Recent files
+
+   #+begin_src emacs-lisp
+     (use-package recentf
+       :config
+       (add-to-list 'recentf-exclude no-littering-var-directory)
+       (add-to-list 'recentf-exclude no-littering-etc-directory))
+   #+end_src
+
+** Open files with sudo
+
+   #+begin_src emacs-lisp
+     (defun sudo ()
+       "Use TRAMP to `sudo' the current buffer"
+       (interactive)
+       (when buffer-file-name
+         (find-alternate-file
+          (concat "/sudo:root@localhost:"
+                  buffer-file-name))))
+   #+end_src
+
+* Orgmode
+** Open src window below
+
+   #+begin_src emacs-lisp
+     (setq org-src-window-setup 'split-window-below)
+   #+end_src
+
+** Org-tempo
+   Org-tempo allows expanding snippets into templates.
+   Ex: <s [TAB] expands into a source code block.
+
+   #+begin_src emacs-lisp
+     (use-package org-tempo)
+   #+end_src
+   
+** Fancy bullet points
+
+   #+begin_src emacs-lisp
+     (use-package org-bullets
+       :ensure t
+       :hook (org-mode . org-bullets-mode)
+       :custom (org-ellipsis "⤵"))
+   #+end_src
+* Programming
+
+** General programming
+
+*** Automatically close parentheses
+
+    #+begin_src emacs-lisp
+      (add-hook 'prog-mode-hook 'electric-pair-local-mode)
+    #+end_src
+
+*** Rainbow parentheses
+
+    #+begin_src emacs-lisp
+      (use-package rainbow-delimiters
+        :ensure t
+        :hook (prog-mode . rainbow-delimiters-mode))
+    #+end_src
+
+*** Git management
+
+    #+begin_src emacs-lisp
+      (use-package magit
+        :ensure t
+        :bind ("C-x g" . magit-status))
+    #+end_src
+
+*** Project management
+
+    #+begin_src emacs-lisp
+      (use-package projectile
+        :ensure t
+        :bind-keymap ("C-c p" . projectile-command-map)
+        :custom (projectile-completion-system 'ivy)
+        :config (projectile-mode t))
+    #+end_src
+
+*** Add shell path to emacs
+
+    Emacs doesn't have access to the $PATH environment variable. This
+    package remidies this.
+
+    #+begin_src emacs-lisp
+      (use-package exec-path-from-shell
+        :ensure t
+        :config
+        (when (memq window-system '(mac ns x))
+          (exec-path-from-shell-initialize)))
+    #+end_src
+
+*** Autocomplete
+
+    #+begin_src emacs-lisp
+      (use-package company
+        :ensure t
+        :config (global-company-mode t))
+    #+end_src
+
+*** Jump to definition
+
+    #+begin_src emacs-lisp
+      (use-package dumb-jump
+        :ensure t
+        :hook (xref-backend-functions . dumb-jump-xref-activate))
+    #+end_src
+
+** Clojure
+   
+   #+begin_src emacs-lisp
+     (use-package clojure-mode
+       :ensure t)
+
+     (use-package cider
+       :ensure t)
+   #+end_src

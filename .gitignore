@@ -1,0 +1,5 @@
+elpa/
+etc/
+var/
+config.el
+early-init.el
